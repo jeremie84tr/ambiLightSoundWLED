@@ -271,7 +271,7 @@ private:
                     buffer[((i + tourne) % NB_LEDS) * 3 + 4] = audioLevels[usedValue] * 255.0;
                 }
             } else {
-                buffer[((i + tourne) % NB_LEDS) * 3 + 2] = 0;
+                buffer[((i + tourne) % NB_LEDS) * 3 + 2] = 255;
                 buffer[((i + tourne) % NB_LEDS) * 3 + 3] = 0;
                 buffer[((i + tourne) % NB_LEDS) * 3 + 4] = 0;
             }
@@ -303,7 +303,7 @@ private:
         }
     }
 
-    void computeFFT(double* output, double* input, int N) {
+    void computeFFT(double* output, double* input, int N, int nbVal) {
         std::vector<std::complex<double>> signal(N);
 
         // Convertir l'entrée en complexe
@@ -315,7 +315,7 @@ private:
         fft(signal.data(), N);
 
         // Extraire les magnitudes
-        for (int i = 0; i < N; ++i) {
+        for (int i = 0; i < nbVal; ++i) {
             output[i] = std::abs(signal[i]);
         }
     }
@@ -330,6 +330,7 @@ private:
                 max = val;
             }
         }
+
         audioLevel = max;
     }
 
@@ -462,9 +463,8 @@ public:
 
     void Start() {
         try {
-            int NB_AMORTISSEMENT = 50;
+            int NB_AMORTISSEMENT = 5;
             double amorti[NB_AMORTISSEMENT];
-            double ret[NB_AMORTISSEMENT];
             for (int i = 0; i < NB_AMORTISSEMENT; i++) {
                 amorti[i] = 0;
             }
@@ -519,37 +519,25 @@ public:
                     minLevel = audioLevel;
                 }
                 moyLevel += audioLevel;
-                amorti[nbVal] = audioLevel;
                 nbVal +=1;
-                if (nbVal >= NB_AMORTISSEMENT) {
-                    nbVal = 0;
-                }
 
                 auto currentDate = std::chrono::high_resolution_clock::now();
                 if (std::chrono::duration<double, std::milli>(currentDate - lastUpdate).count() > 17) {
                     lastUpdate = currentDate;
-//                    amorti[amortiId] = moyLevel / nbVal;
-//                    amortiId += 1;
-//                    if (amortiId >= NB_AMORTISSEMENT) {
-//                        amortiId = 0;
-//                    }
-
-
-                    computeFFT(ret, amorti, NB_AMORTISSEMENT);
-
-                    std::cout << "Resultat de la FFT:" << std::endl;
-                    for (int i = 0; i<NB_AMORTISSEMENT; i++) {
-                        std::cout << ret[i] << std::endl;
+                    amorti[amortiId] = moyLevel / nbVal;
+                    amortiId += 1;
+                    if (amortiId >= NB_AMORTISSEMENT) {
+                        amortiId = 0;
                     }
 
-                    //level = getAmorti(amorti, NB_AMORTISSEMENT);
+                    level = getAmorti(amorti, NB_AMORTISSEMENT);
                     //spin += ((level - 0.1) * (level - 0.1) * (level - 0.1)) * 50.0;
 
-                    setBytes(buffer, ret, NB_AMORTISSEMENT, spin);
+                    setBytes(buffer, level, spin);
                     sendto(datagramSocket, buffer, sizeof(buffer), 0, (SOCKADDR*)&address, sizeof(address));
                     moyLevel = 0.0;
                     minLevel = 1.0;
-//                    nbVal = 0;
+                    nbVal = 0;
 
                     frame += 1;
                     if (frame % 100 == 0) {
@@ -570,6 +558,8 @@ public:
 
 private:
     double audioLevel;
+    double* fourrier;
+    int fourrierSize = 0;
     const int NB_LEDS = 458;
 
     IMMDeviceEnumerator* pEnumerator;
