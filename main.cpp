@@ -214,11 +214,12 @@ public:
 #include <cmath>
 #include <complex>
 #include <vector>
+#include <mutex>
 
 #pragma comment(lib, "Ws2_32.lib")
 #pragma comment(lib, "Ole32.lib")
 
-#define REFTIMES_PER_SEC  10
+#define REFTIMES_PER_SEC  10000
 #define REFTIMES_PER_MILLISEC  10000
 
 #define EXIT_ON_ERROR(hres)  \
@@ -226,6 +227,8 @@ public:
 #define SAFE_RELEASE(punk)  \
               if ((punk) != NULL)  \
                 { (punk)->Release(); (punk) = NULL; }
+
+std::mutex isChangingFourrier;
 
 class SoundLight {
 private:
@@ -298,38 +301,55 @@ private:
         // Combiner
         for (int i = 0; 2 * i < n; i++) {
             std::complex<double> t = std::polar(1.0, -2 * PI * i / n) * a1[i];
-            a[i] = a0[i] + t;
+            a[i] = a1[i] + t;
             a[i + n / 2] = a0[i] - t;
         }
     }
 
     void computeFFT(double* output, double* input, int N, int nbVal) {
-        std::vector<std::complex<double>> signal(N);
+       std::complex<double> signal[N];
 
+//        std::cout << "avant convert" << std::endl;
         // Convertir l'entrée en complexe
         for (int i = 0; i < N; ++i) {
             signal[i] = std::complex<double>(input[i], 0);
         }
 
+//        std::cout << "avant FFT" << std::endl;
         // Calculer la FFT
-        fft(signal.data(), N);
+        fft(signal, N);
 
+//        std::cout << "avant magnitudes" << std::endl;
+        double coef = N / nbVal;
         // Extraire les magnitudes
-        for (int i = 0; i < nbVal; ++i) {
-            output[i] = std::abs(signal[i]);
+        for (int i = 1; i < nbVal; i++) {
+            output[i] = 0;
+            for(int j = -coef; j < coef; j++) {
+                int tot = std::pow(1.2,(double) i) + j;
+                if (tot > 1 && tot < N) {
+                    output[i] += (std::abs(signal[tot]) / (coef * 2)) * 0.02;
+                }
+            }
+//            std::cout << "magnitude : " << output[i] << std::endl;
         }
     }
 
-    void processAudio(BYTE* pData, UINT32 numFrames) {
-        float* data = (float*)pData;
+    void processAudio(float* data, UINT32 numFrames) {
         double max = 0.0;
         double val;
+//        std::cout << "avant wait" << std::endl;
+        isChangingFourrier.lock();
+//        std::cout << "nouveau fourrier" << std::endl;
         for (UINT32 i = 0; i < numFrames; ++i) {
+            double value = (data[i] * 2.0) - 1.0;
+            fourrier[i] = value;
             val = data[i] * data[i];
             if (val > max) {
                 max = val;
             }
         }
+        fourrierSize = (int) numFrames;
+        isChangingFourrier.unlock();
 
         audioLevel = max;
     }
@@ -393,7 +413,12 @@ private:
         BYTE* pData;
         DWORD flags;
         UINT32 numFramesAvailable;
+        int size = 1024;
+        float computedData[size];
+        fourrier = new double[size];
+        int cdId = 0;
 
+//        std::cout << "avant capture" << std::endl;
         hr = pAudioClient->Start();
         if (FAILED(hr)) {
             std::cerr << "Failed to start audio client: " << hr << std::endl;
@@ -408,6 +433,7 @@ private:
             }
 
             while (packetLength != 0) {
+//                std::cout << "packet ok" << std::endl;
                 hr = pCaptureClient->GetBuffer(
                         &pData,
                         &numFramesAvailable,
@@ -422,7 +448,18 @@ private:
                 }
 
                 if (pData) {
-                    processAudio(pData, numFramesAvailable);
+                    //std::cout << "avant process audio" << std::endl;
+                    float* data = (float*)pData;
+                    for(int i = 0; i < numFramesAvailable; i++) {
+                        computedData[cdId] = data[i];
+                        cdId++;
+                        if (cdId >= size) {
+                            //std::cout << "processed";
+                            processAudio(computedData, size);
+                            cdId = 0;
+                        }
+                    }
+                    //std::cout << "apres process audio" << std::endl;
                 }
 
                 hr = pCaptureClient->ReleaseBuffer(numFramesAvailable);
@@ -437,6 +474,7 @@ private:
                     break;
                 }
             }
+
         }
 
         pAudioClient->Stop();
@@ -502,16 +540,19 @@ public:
             double minLevel = 1.0;
             double level;
             double spin = 0.0;
+            double signal[50];
 
+            std::cout << "avant initWASAPI" << std::endl;
             HRESULT hr = initializeWASAPI();
             if (FAILED(hr)) {
                 std::cerr << "Failed to initialize WASAPI: " << hr << std::endl;
                 return;
             }
 
+            std::cout << "avant audioThread" << std::endl;
             std::thread audioThread(&SoundLight::captureAudio, this);
 
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
 
             while (true) {
@@ -530,11 +571,17 @@ public:
                         amortiId = 0;
                     }
 
-                    level = getAmorti(amorti, NB_AMORTISSEMENT);
+
+                    isChangingFourrier.lock();
+//                    std::cout << "avant compute FFT" << std::endl;
+                    computeFFT(signal, fourrier, fourrierSize, 50);
+
+                    //level = getAmorti(amorti, NB_AMORTISSEMENT);
                     //spin += ((level - 0.1) * (level - 0.1) * (level - 0.1)) * 50.0;
 
-                    setBytes(buffer, level, spin);
+                    setBytes(buffer, signal, 50, spin);
                     sendto(datagramSocket, buffer, sizeof(buffer), 0, (SOCKADDR*)&address, sizeof(address));
+                    isChangingFourrier.unlock();
                     moyLevel = 0.0;
                     minLevel = 1.0;
                     nbVal = 0;
@@ -559,7 +606,7 @@ public:
 private:
     double audioLevel;
     double* fourrier;
-    int fourrierSize = 0;
+    int fourrierSize = -1;
     const int NB_LEDS = 458;
 
     IMMDeviceEnumerator* pEnumerator;
