@@ -215,6 +215,7 @@ public:
 #include <complex>
 #include <vector>
 #include <mutex>
+#include "arglib/fasttransforms.h"
 
 #pragma comment(lib, "Ws2_32.lib")
 #pragma comment(lib, "Ole32.lib")
@@ -281,43 +282,24 @@ private:
         }
     }
 
-    const double PI = 3.141592653589793238460;
-
-    void fft(std::complex<double>* a, int n) {
-        if (n <= 1) return;
-
-        // Diviser
-        std::vector<std::complex<double>> a0(n / 2), a1(n / 2);
-
-        for (int i = 0; 2 * i + 1 < n; i++) {
-            a0[i] = a[i*2];
-            a1[i] = a[i*2 + 1];
-        }
-
-        // Conquérir
-        fft(a0.data(), n / 2);
-        fft(a1.data(), n / 2);
-
-        // Combiner
-        for (int i = 0; 2 * i < n; i++) {
-            std::complex<double> t = std::polar(1.0, -2 * PI * i / n) * a1[i];
-            a[i] = a1[i] + t;
-            a[i + n / 2] = a0[i] - t;
-        }
-    }
-
     void computeFFT(double* output, double* input, int N, int nbVal) {
-       std::complex<double> signal[N];
+        alglib_impl::ae_state state;
 
-//        std::cout << "avant convert" << std::endl;
-        // Convertir l'entrée en complexe
+        alglib_impl::ae_vector signal;
+        memset(&signal, 0, sizeof(signal));
+        ae_vector_init(&signal,N,alglib_impl::DT_COMPLEX,&state,true);
+
+        alglib_impl::ae_vector a;
+        memset(&a, 0, sizeof(a));
+        ae_vector_init(&a,N,alglib_impl::DT_REAL,&state,true);
+
         for (int i = 0; i < N; ++i) {
-            signal[i] = std::complex<double>(input[i], 0);
+            a.ptr.p_double[i] = input[i];
         }
 
 //        std::cout << "avant FFT" << std::endl;
         // Calculer la FFT
-        fft(signal, N);
+        alglib_impl::fftr1d(&signal,N,&a, &state);
 
 //        std::cout << "avant magnitudes" << std::endl;
         double coef = N / nbVal;
@@ -327,7 +309,7 @@ private:
             for(int j = -coef; j < coef; j++) {
                 int tot = std::pow(1.2,(double) i) + j;
                 if (tot > 1 && tot < N) {
-                    output[i] += (std::abs(signal[tot]) / (coef * 2)) * 0.02;
+                    output[i] += (std::abs(signal.datatype) / (coef * 2)) * 0.02;
                 }
             }
 //            std::cout << "magnitude : " << output[i] << std::endl;
@@ -574,7 +556,7 @@ public:
 
                     isChangingFourrier.lock();
 //                    std::cout << "avant compute FFT" << std::endl;
-                    computeFFT(signal, fourrier, fourrierSize, 50);
+                    computeFFT(signal,fourrier, fourrierSize, 50);
 
                     //level = getAmorti(amorti, NB_AMORTISSEMENT);
                     //spin += ((level - 0.1) * (level - 0.1) * (level - 0.1)) * 50.0;
