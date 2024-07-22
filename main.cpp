@@ -478,7 +478,7 @@ private:
 //            if (i % 200 == 0) {
 //                std::cout << "value : " << value << " ;" << std::endl;
 //            }
-            fourrier[i] = value;
+            fourrierValues[i] = value;
             i++;
         }
         fourrierSize = (int) numFrames;
@@ -548,7 +548,7 @@ private:
         int size = 512;
         float computedData[size];
         float audioData[size];
-        fourrier = new double[size];
+        fourrierValues = new double[size];
         int adId = 0;
         int cdId = 0;
 
@@ -692,7 +692,7 @@ public:
         CoUninitialize();
     }
 
-    void Start() {
+    void Start(bool fourrier) {
         try {
             int NB_AMORTISSEMENT = 5;
             double amorti[NB_AMORTISSEMENT];
@@ -784,7 +784,7 @@ public:
 
                     isChangingFourrier.lock();
 //                    std::cout << "avant compute FFT" << std::endl;
-                    computeFFT(signal[signalAmortiId],fourrier, fourrierSize, NB_VAL);
+                    computeFFT(signal[signalAmortiId],fourrierValues, fourrierSize, NB_VAL);
                     isChangingFourrier.unlock();
 
 //                    std::cout << "avant amorti" << std::endl;
@@ -797,9 +797,11 @@ public:
                     }
 //                    std::cout << "setBytes" << std::endl;
 
-
-                    setBytes(buffer, level, spin);
-//                    setBytes(buffer, signalAmorti, NB_VAL, spin);
+                    if (fourrier) {
+                        setBytes(buffer, signalAmorti, NB_VAL, spin);
+                    } else {
+                        setBytes(buffer, level, spin);
+                    }
 
                     sendto(datagramSocket, buffer, sizeof(buffer), 0, (SOCKADDR*)&address, sizeof(address));
                     moyLevel = 0.0;
@@ -829,7 +831,7 @@ public:
 
 private:
     double audioLevel;
-    double* fourrier;
+    double* fourrierValues;
     int fourrierSize = -1;
     int maxFreq = 0;
     const int NB_LEDS = 458;
@@ -844,7 +846,41 @@ private:
 
 
 
-int main() {
+int main(int argc, char** argv) {
+    bool light = true;
+    bool fourrier = false;
+
+    for (int argIndex = 0; argIndex < argc; ++argIndex) {
+        char character = argv[argIndex][0];
+        int charIndice = 0;
+        while (character != '\0') {
+            if (character == '-') {
+                std::cout << "option" << std::endl;
+                character = argv[argIndex][++charIndice];
+                switch (character) {
+                    case 's':
+                        std::cout << "sound" << std::endl;
+                        light = false;
+                        break;
+                    case 'l':
+                        std::cout << "light" << std::endl;
+                        light = true;
+                        break;
+                    case 'f':
+                        std::cout << "fourrier" << std::endl;
+                        fourrier = true;
+                        break;
+                    default:
+                        std::cout << "DK" << std::endl;
+                        break;
+                }
+            } else {
+                character = argv[argIndex][++charIndice];
+            }
+
+        }
+    }
+
     // Initialize Winsock
     WSADATA wsaData;
     int iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
@@ -853,12 +889,12 @@ int main() {
         return 1;
     }
 
-    if (false) {
+    if (light) {
         Ambilight ambilight;
         ambilight.start();
     } else {
         SoundLight soundLight;
-        soundLight.Start();
+        soundLight.Start(fourrier);
     }
 
 
