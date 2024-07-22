@@ -220,7 +220,7 @@ public:
 #pragma comment(lib, "Ws2_32.lib")
 #pragma comment(lib, "Ole32.lib")
 
-#define REFTIMES_PER_SEC  10000
+#define REFTIMES_PER_SEC  1000000
 #define REFTIMES_PER_MILLISEC  10000
 
 #define EXIT_ON_ERROR(hres)  \
@@ -229,23 +229,97 @@ public:
               if ((punk) != NULL)  \
                 { (punk)->Release(); (punk) = NULL; }
 
+class AmbilightColor {
+public:
+    static const int gradient_size = 768;
+    static AmbilightColor gradient[gradient_size];
+
+    byte red;
+    byte green;
+    byte blue;
+
+    static void initGradient() {
+        for (int i = 0; i < gradient_size; ++i) {
+            byte red = 0;
+            if (i < 255) {
+                red = 0;
+            } else if (i < 512) {
+                red = i - 255;
+            } else if (i < 768) {
+                red = 255;
+            }
+            byte green = 0;
+            if (i < 255) {
+                green = i;
+            } else if (i < 512) {
+                green = 255;
+            } else if (i < 768) {
+                green = 768 - i;
+            }
+            byte blue = 0;
+            gradient[i] = AmbilightColor(red, green, blue);
+        }
+    }
+
+    static AmbilightColor getGradient(int value) {
+        if (value >= 0) {
+            if (value < gradient_size) {
+                return gradient[value];
+            } else {
+                return gradient[gradient_size - 1];
+            }
+        } else {
+            return gradient[0];
+        }
+    }
+
+    AmbilightColor() {
+        this->red = 0;
+        this->green = 0;
+        this->blue = 0;
+    }
+
+    AmbilightColor(byte red, byte green, byte blue) {
+        this->red = red;
+        this->green = green;
+        this->blue = blue;
+    }
+
+
+};
+// Initialize the static member outside the class definition
+AmbilightColor AmbilightColor::gradient[AmbilightColor::gradient_size];
+
 std::mutex isChangingFourrier;
+std::mutex isChangingData;
 
 class SoundLight {
 private:
     void setBytes(char* buffer, double audioLevel, double tourneIn = 0) {
         uint16_t level = static_cast<uint16_t>(audioLevel * NB_LEDS / 4);
-        int tourne = tourneIn;
         int decalage = 65;
-        for (int i = decalage; i < NB_LEDS + decalage; ++i) {
-            if (i - decalage < level || NB_LEDS - i + decalage < level) {
-                buffer[((i + tourne) % NB_LEDS) * 3 + 2] = 64;
-                buffer[((i + tourne) % NB_LEDS) * 3 + 3] = 255;
-                buffer[((i + tourne) % NB_LEDS) * 3 + 4] = 64;
-            } else if (i - decalage - (NB_LEDS / 2) < level && NB_LEDS - i + decalage - (NB_LEDS / 2) < level) {
-                buffer[((i + tourne) % NB_LEDS) * 3 + 2] = 64;
-                buffer[((i + tourne) % NB_LEDS) * 3 + 3] = 64;
-                buffer[((i + tourne) % NB_LEDS) * 3 + 4] = 255;
+        int tourne = tourneIn + decalage;
+        for (int i = 0; i < NB_LEDS; ++i) {
+            if (i < level || NB_LEDS - i < level) {
+                AmbilightColor couleur;
+                if (i < level) {
+                    couleur = AmbilightColor::getGradient((int) ((level - i) * 6.0) + 255);
+                } else {
+                    couleur = AmbilightColor::getGradient((int) ((level - NB_LEDS + i) * 6.0) + 255);
+                }
+                buffer[((i + tourne) % NB_LEDS) * 3 + 2] = couleur.red;
+                buffer[((i + tourne) % NB_LEDS) * 3 + 3] = couleur.green;
+                buffer[((i + tourne) % NB_LEDS) * 3 + 4] = couleur.blue;
+            } else if (i - (NB_LEDS / 2) < level && NB_LEDS - i - (NB_LEDS / 2) < level) {
+                AmbilightColor couleur;
+                if (i - (NB_LEDS / 2) < level && i > NB_LEDS / 2) {
+                    couleur = AmbilightColor::getGradient((int) ((level - (i - (NB_LEDS / 2))) * 6.0) + 255);
+                } else {
+                    couleur = AmbilightColor::getGradient((int) ((level - (NB_LEDS / 2) + i) * 6.0) + 255);
+                }
+                buffer[((i + tourne) % NB_LEDS) * 3 + 2] = couleur.red;
+                buffer[((i + tourne) % NB_LEDS) * 3 + 3] = couleur.green;
+                buffer[((i + tourne) % NB_LEDS) * 3 + 4] = couleur.green;
             } else {
                 buffer[((i + tourne) % NB_LEDS) * 3 + 2] = 0;
                 buffer[((i + tourne) % NB_LEDS) * 3 + 3] = 0;
@@ -254,86 +328,162 @@ private:
         }
     }
     void setBytes(char* buffer, double* audioLevels, int nbVals, double tourneIn = 0) {
-        uint16_t level = 50;
-        int tourne = tourneIn;
+        uint16_t level = nbVals;
         int decalage = 65;
+        int tourne = tourneIn + decalage;
+
+        double mult = 16.0;
 
         int usedValue;
-        for (int i = decalage; i < NB_LEDS + decalage; ++i) {
-            if (i - decalage < level || NB_LEDS - i + decalage < level) {
-                usedValue = (i - decalage);
+        for (int i = 0; i < NB_LEDS ; ++i) {
+            if (i < level || NB_LEDS - i < level) {
+                usedValue = i;
                 if (usedValue < nbVals && usedValue > 0) {
-                    buffer[((i + tourne) % NB_LEDS) * 3 + 2] = audioLevels[usedValue] * 64.0;
-                    buffer[((i + tourne) % NB_LEDS) * 3 + 3] = audioLevels[usedValue] * 255.0;
-                    buffer[((i + tourne) % NB_LEDS) * 3 + 4] = audioLevels[usedValue] * 64.0;
+                    AmbilightColor couleur = AmbilightColor::getGradient((int) (audioLevels[usedValue] * 255.0 * mult));
+                    buffer[((i + tourne) % NB_LEDS) * 3 + 2] = couleur.red;
+                    buffer[((i + tourne) % NB_LEDS) * 3 + 3] = couleur.green;
+                    buffer[((i + tourne) % NB_LEDS) * 3 + 4] = couleur.blue;
+                    couleur = AmbilightColor::getGradient((int) (audioLevels[nbVals - usedValue] * 255.0 * mult));
+                    buffer[((i + tourne - nbVals) % NB_LEDS) * 3 + 2] = couleur.red;
+                    buffer[((i + tourne - nbVals) % NB_LEDS) * 3 + 3] = couleur.green;
+                    buffer[((i + tourne - nbVals) % NB_LEDS) * 3 + 4] = couleur.blue;
                 }
-            } else if (i - decalage - (NB_LEDS / 2) < level && NB_LEDS - i + decalage - (NB_LEDS / 2) < level) {
-                usedValue = (i - decalage - (NB_LEDS / 2));
+            } else if (i - (NB_LEDS / 2) < level && NB_LEDS - i - (NB_LEDS / 2) < level) {
+                usedValue = (i - (NB_LEDS / 2));
                 if (usedValue < nbVals && usedValue > 0) {
-                    buffer[((i + tourne) % NB_LEDS) * 3 + 2] = audioLevels[usedValue] * 64.0;
-                    buffer[((i + tourne) % NB_LEDS) * 3 + 3] = audioLevels[usedValue] * 64.0;
-                    buffer[((i + tourne) % NB_LEDS) * 3 + 4] = audioLevels[usedValue] * 255.0;
+                    AmbilightColor couleur = AmbilightColor::getGradient((int) (audioLevels[usedValue] * 255.0 * mult));
+                    buffer[((i + tourne) % NB_LEDS) * 3 + 2] = couleur.red;
+                    buffer[((i + tourne) % NB_LEDS) * 3 + 3] = couleur.green;
+                    buffer[((i + tourne) % NB_LEDS) * 3 + 4] = couleur.blue;
+                    couleur = AmbilightColor::getGradient((int) (audioLevels[nbVals - usedValue] * 255.0 * mult));
+                    buffer[((i + tourne - nbVals) % NB_LEDS) * 3 + 2] = couleur.red;
+                    buffer[((i + tourne - nbVals) % NB_LEDS) * 3 + 3] = couleur.green;
+                    buffer[((i + tourne - nbVals) % NB_LEDS) * 3 + 4] = couleur.blue;
                 }
             } else {
-                buffer[((i + tourne) % NB_LEDS) * 3 + 2] = 255;
-                buffer[((i + tourne) % NB_LEDS) * 3 + 3] = 0;
-                buffer[((i + tourne) % NB_LEDS) * 3 + 4] = 0;
+                buffer[((i + tourne) % NB_LEDS) * 3 + 2] = 64;
+                buffer[((i + tourne) % NB_LEDS) * 3 + 3] = 64;
+                buffer[((i + tourne) % NB_LEDS) * 3 + 4] = 64;
             }
         }
     }
+    alglib_impl::ae_vector signal;
+    alglib_impl::ae_vector a;
+    alglib_impl::ae_state state;
+
+    double dist(alglib_impl::ae_complex* val) {
+        return val->x * val->x + val->y * val->y;
+    }
+
+    int divider = 4;
 
     void computeFFT(double* output, double* input, int N, int nbVal) {
-        alglib_impl::ae_state state;
 
-        alglib_impl::ae_vector signal;
-        memset(&signal, 0, sizeof(signal));
-        ae_vector_init(&signal,N,alglib_impl::DT_COMPLEX,&state,true);
+        try {
+            for (int i = 0; i < N; ++i) {
+                a.ptr.p_double[i] = input[i];
+            }
 
-        alglib_impl::ae_vector a;
-        memset(&a, 0, sizeof(a));
-        ae_vector_init(&a,N,alglib_impl::DT_REAL,&state,true);
+//            std::cout << "avant FFT" << std::endl;
+            // Calculer la FFT
+            if(N > 0) {
+                alglib_impl::fftr1d(&a, N, &signal, &state);
+            }
 
-        for (int i = 0; i < N; ++i) {
-            a.ptr.p_double[i] = input[i];
-        }
+//            std::cout << "avant magnitudes" << std::endl;
+            double coef = N / nbVal;
+            // Extraire les magnitudes
 
-//        std::cout << "avant FFT" << std::endl;
-        // Calculer la FFT
-        alglib_impl::fftr1d(&signal,N,&a, &state);
-
-//        std::cout << "avant magnitudes" << std::endl;
-        double coef = N / nbVal;
-        // Extraire les magnitudes
-        for (int i = 1; i < nbVal; i++) {
-            output[i] = 0;
-            for(int j = -coef; j < coef; j++) {
-                int tot = std::pow(1.2,(double) i) + j;
-                if (tot > 1 && tot < N) {
-                    output[i] += (std::abs(signal.datatype) / (coef * 2)) * 0.02;
+            int iMax = 1;
+            double val;
+            for (int i = 1; i < N; ++i) {
+                val = dist(&signal.ptr.p_complex[i]);
+                if (val > dist(&signal.ptr.p_complex[iMax])) {
+                    iMax = i;
                 }
             }
-//            std::cout << "magnitude : " << output[i] << std::endl;
+            double max = dist(&signal.ptr.p_complex[iMax]);
+//            std::cout << "val " << iMax << " -> " << max << std::endl;
+//            std::cout << "estimated freq : " << iMax * ((96000 / N) / divider) << std::endl;
+
+            if (max < 1) {
+                max = 1;
+            }
+
+            double jStart;
+            double jEnd;
+
+            int maxJ = 1;
+
+            int biais = 8;
+
+
+//            std::cout << "avant output" << std::endl;
+            for (int i = biais; i < nbVal; i++) {
+                output[i - biais] = 0;
+                jStart = pow(((double) i - 0.5) / (double) nbVal, 3.0) * nbVal * 10.0 ;
+                jEnd = pow(((double) i + 0.5) / (double) nbVal, 3.0) * nbVal * 10.0 ;
+                if (dist(&signal.ptr.p_complex[i]) > dist(&signal.ptr.p_complex[maxJ])) {
+                    maxJ = i;
+                }
+                for(int j = jStart; j < jEnd; j++) {
+                    if (j > 0 && j < N) {
+//                        std::cout << i << " add " << (dist(&signal.ptr.p_complex[j])) << std::endl;
+                        if (i - biais > 0) {
+                            output[i - biais] += ((dist(&signal.ptr.p_complex[j]) / max) * 0.2);
+                        }
+                    }
+                }
+    //            std::cout << "magnitude : " << output[i] << std::endl;
+            }
+//            std::cout << "apres output" << std::endl;
+            if (dist(&signal.ptr.p_complex[maxJ]) > 0.001) {
+                maxFreq = maxJ * ((96000 / N) / divider);
+            } else {
+                maxFreq = 0;
+            }
+
+        } catch (std::exception &e) {
+            std::cerr << "Exception: " << e.what() << std::endl;
         }
+
     }
 
     void processAudio(float* data, UINT32 numFrames) {
+
         double max = 0.0;
         double val;
+
+        UINT32 i = 0;
+        while (i < numFrames) {
+            val = data[i];
+            if (val > max) {
+                max = val;
+            } else if (-val > max) {
+                max = -val;
+            }
+            i++;
+        }
+        audioLevel = max;
+    }
+
+    void processFourrier(float* data, UINT32 numFrames, int repeat) {
 //        std::cout << "avant wait" << std::endl;
         isChangingFourrier.lock();
 //        std::cout << "nouveau fourrier" << std::endl;
-        for (UINT32 i = 0; i < numFrames; ++i) {
-            double value = (data[i] * 2.0) - 1.0;
+        UINT32 i = 0;
+
+        while (i < numFrames) {
+            double value = data[i % repeat] + 0.5; // valeur entre 0 et 1
+//            if (i % 200 == 0) {
+//                std::cout << "value : " << value << " ;" << std::endl;
+//            }
             fourrier[i] = value;
-            val = data[i] * data[i];
-            if (val > max) {
-                max = val;
-            }
+            i++;
         }
         fourrierSize = (int) numFrames;
         isChangingFourrier.unlock();
 
-        audioLevel = max;
     }
 
     HRESULT initializeWASAPI() {
@@ -395,10 +545,23 @@ private:
         BYTE* pData;
         DWORD flags;
         UINT32 numFramesAvailable;
-        int size = 1024;
+        int size = 512;
         float computedData[size];
+        float audioData[size];
         fourrier = new double[size];
+        int adId = 0;
         int cdId = 0;
+
+        int periodSequence = 0;
+        float lastData;
+
+        bool packetDone = false;
+
+        memset(&signal, 0, sizeof(signal));
+        memset(&a, 0, sizeof(a));
+        ae_vector_init(&signal,size,alglib_impl::DT_COMPLEX,&state,true);
+        ae_vector_init(&a,size,alglib_impl::DT_REAL,&state,true);
+        alglib_impl::ae_state_init(&state);
 
 //        std::cout << "avant capture" << std::endl;
         hr = pAudioClient->Start();
@@ -414,7 +577,9 @@ private:
                 break;
             }
 
+            packetDone = false;
             while (packetLength != 0) {
+                packetDone = true;
 //                std::cout << "packet ok" << std::endl;
                 hr = pCaptureClient->GetBuffer(
                         &pData,
@@ -432,16 +597,43 @@ private:
                 if (pData) {
                     //std::cout << "avant process audio" << std::endl;
                     float* data = (float*)pData;
-                    for(int i = 0; i < numFramesAvailable; i++) {
-                        computedData[cdId] = data[i];
-                        cdId++;
-                        if (cdId >= size) {
-                            //std::cout << "processed";
-                            processAudio(computedData, size);
+//                    processAudio(data, numFramesAvailable);
+                    for(int i = 0 ; i < numFramesAvailable; i += divider) {
+                        if (periodSequence == 0) {
+                            if (lastData < 0 && data[i] >= 0) {
+                                periodSequence++;
+                            }
+                        } else {
+                            if ((lastData < 0 && data[i] >= 0) || (lastData > 0 && data[i] <= 0)) {
+                                periodSequence++;
+                            }
+                        }
+                        lastData = data[i];
+
+                        if(periodSequence > 0) {
+                            computedData[cdId] = lastData;
+                            cdId++;
+                        }
+                        if (cdId == size || periodSequence == 21) {
+//                            for (int j = 0; j < cdId; ++j) {
+//                                std::cout << computedData[j] << " ";
+//                            }
+//                            std::cout << std::endl;
+                            //std::cout << "process " << cdId << " elements : " << (96000 / cdId / divider) << "hz" << std::endl;
+//                            std::cout << "processAudio" << std::endl;
+                            processFourrier(computedData, size, cdId - 1);
                             cdId = 0;
+                            periodSequence = 0;
+                        }
+
+                        audioData[adId] = lastData;
+                        adId++;
+                        if (adId >= size / 3) {
+                            loopCaptureCount++;
+                            processAudio(audioData, adId);
+                            adId = 0;
                         }
                     }
-                    //std::cout << "apres process audio" << std::endl;
                 }
 
                 hr = pCaptureClient->ReleaseBuffer(numFramesAvailable);
@@ -450,11 +642,18 @@ private:
                     break;
                 }
 
+                //std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+
+
                 hr = pCaptureClient->GetNextPacketSize(&packetLength);
                 if (FAILED(hr)) {
                     std::cerr << "Failed to get next packet size: " << hr << std::endl;
                     break;
                 }
+            }
+            if (!packetDone) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
             }
 
         }
@@ -468,6 +667,18 @@ private:
             ret += sqrt(pDouble[i]);
         }
         return ret / nbValues;
+    }
+
+    void getAmorti(double* out, double** ppDouble, int nbValues, int nbAmorti, int start) {
+        double ret;
+        for (int i = start - 1; i < nbValues + start - 1; i++) {
+            int iVal = (i + nbValues) % nbValues;
+            ret = 0;
+            for (int j = 0; j < nbAmorti; ++j) {
+                ret += ppDouble[j][iVal] * ppDouble[j][iVal] ;
+            }
+            out[iVal] = (ret / (double) nbValues) * 25.0;
+        }
     }
 
 public:
@@ -490,6 +701,8 @@ public:
             }
             const int NB_LEDS = 458;
             char buffer[NB_LEDS * 3 + 2];
+
+            AmbilightColor::initGradient();
 
             buffer[0] = 2;
             buffer[1] = 1;
@@ -522,7 +735,17 @@ public:
             double minLevel = 1.0;
             double level;
             double spin = 0.0;
-            double signal[50];
+            int NB_VAL = 50;
+
+            double* signal[NB_AMORTISSEMENT];
+            for (int i = 0; i < NB_AMORTISSEMENT; ++i) {
+                signal[i] = new double[NB_VAL];
+                for (int j = 0; j < NB_VAL; ++j) {
+                    signal[i][j] = 0;
+                }
+            }
+            double signalAmorti[NB_VAL];
+            int signalAmortiId = 0;
 
             std::cout << "avant initWASAPI" << std::endl;
             HRESULT hr = initializeWASAPI();
@@ -534,10 +757,11 @@ public:
             std::cout << "avant audioThread" << std::endl;
             std::thread audioThread(&SoundLight::captureAudio, this);
 
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
 
             while (true) {
+                loopRenderCount++;
                 if (audioLevel < minLevel) {
                     minLevel = audioLevel;
                 }
@@ -545,25 +769,39 @@ public:
                 nbVal +=1;
 
                 auto currentDate = std::chrono::high_resolution_clock::now();
-                if (std::chrono::duration<double, std::milli>(currentDate - lastUpdate).count() > 17) {
+                if (std::chrono::duration<double, std::milli>(currentDate - lastUpdate).count() > 12) {
                     lastUpdate = currentDate;
                     amorti[amortiId] = moyLevel / nbVal;
                     amortiId += 1;
                     if (amortiId >= NB_AMORTISSEMENT) {
                         amortiId = 0;
                     }
+                    signalAmortiId++;
+                    if (signalAmortiId >= NB_AMORTISSEMENT) {
+                        signalAmortiId = 0;
+                    }
 
 
                     isChangingFourrier.lock();
 //                    std::cout << "avant compute FFT" << std::endl;
-                    computeFFT(signal,fourrier, fourrierSize, 50);
-
-                    //level = getAmorti(amorti, NB_AMORTISSEMENT);
-                    //spin += ((level - 0.1) * (level - 0.1) * (level - 0.1)) * 50.0;
-
-                    setBytes(buffer, signal, 50, spin);
-                    sendto(datagramSocket, buffer, sizeof(buffer), 0, (SOCKADDR*)&address, sizeof(address));
+                    computeFFT(signal[signalAmortiId],fourrier, fourrierSize, NB_VAL);
                     isChangingFourrier.unlock();
+
+//                    std::cout << "avant amorti" << std::endl;
+                    level = getAmorti(amorti, NB_AMORTISSEMENT);
+                    getAmorti(signalAmorti, signal, NB_VAL, NB_AMORTISSEMENT, signalAmortiId);
+                    if (maxFreq > 0) {
+                        double quantite = 500.0 / maxFreq;
+//                        std::cout << "tourne : " << quantite << std::endl;
+                        //spin += quantite;
+                    }
+//                    std::cout << "setBytes" << std::endl;
+
+
+                    setBytes(buffer, level, spin);
+//                    setBytes(buffer, signalAmorti, NB_VAL, spin);
+
+                    sendto(datagramSocket, buffer, sizeof(buffer), 0, (SOCKADDR*)&address, sizeof(address));
                     moyLevel = 0.0;
                     minLevel = 1.0;
                     nbVal = 0;
@@ -571,9 +809,13 @@ public:
                     frame += 1;
                     if (frame % 100 == 0) {
                         std::cout << 100000.0 / std::chrono::duration<double, std::milli>(currentDate - lastDate).count()
-                                  << " fps" << std::endl;
+                                  << " fps  ; captureLoopCount : " << (loopCaptureCount * 1000.0) / std::chrono::duration<double, std::milli>(currentDate - lastDate).count() << " ; renderLoopCount : " << (loopRenderCount * 1000.0) / std::chrono::duration<double, std::milli>(currentDate - lastDate).count() << std::endl;
                         lastDate = currentDate;
+                        loopCaptureCount = 0;
+                        loopRenderCount = 0;
                     }
+                } else {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(15));
                 }
             }
 
@@ -589,7 +831,10 @@ private:
     double audioLevel;
     double* fourrier;
     int fourrierSize = -1;
+    int maxFreq = 0;
     const int NB_LEDS = 458;
+    int loopCaptureCount = 0;
+    int loopRenderCount = 0;
 
     IMMDeviceEnumerator* pEnumerator;
     IMMDevice* pDevice;
