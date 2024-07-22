@@ -8,19 +8,19 @@ set(CMAKE_CXX_STANDARD 17)
 set(SOURCES
         main.cpp
         # Add all ALGLIB source files here
-        D:/outilsJetBrain/CLion/libraries/alglib-cpp/src/alglibinternal.cpp
-        D:/outilsJetBrain/CLion/libraries/alglib-cpp/src/alglibmisc.cpp
-        D:/outilsJetBrain/CLion/libraries/alglib-cpp/src/ap.cpp
-        D:/outilsJetBrain/CLion/libraries/alglib-cpp/src/dataanalysis.cpp
-        D:/outilsJetBrain/CLion/libraries/alglib-cpp/src/diffequations.cpp
-        D:/outilsJetBrain/CLion/libraries/alglib-cpp/src/fasttransforms.cpp
-        D:/outilsJetBrain/CLion/libraries/alglib-cpp/src/integration.cpp
-        D:/outilsJetBrain/CLion/libraries/alglib-cpp/src/interpolation.cpp
-        D:/outilsJetBrain/CLion/libraries/alglib-cpp/src/linalg.cpp
-        D:/outilsJetBrain/CLion/libraries/alglib-cpp/src/optimization.cpp
-        D:/outilsJetBrain/CLion/libraries/alglib-cpp/src/solvers.cpp
-        D:/outilsJetBrain/CLion/libraries/alglib-cpp/src/specialfunctions.cpp
-        D:/outilsJetBrain/CLion/libraries/alglib-cpp/src/statistics.cpp
+        arglib/src/alglibinternal.cpp
+        arglib/src/alglibmisc.cpp
+        arglib/src/ap.cpp
+        arglib/src/dataanalysis.cpp
+        arglib/src/diffequations.cpp
+        arglib/src/fasttransforms.cpp
+        arglib/src/integration.cpp
+        arglib/src/interpolation.cpp
+        arglib/src/linalg.cpp
+        arglib/src/specialfunctions.cpp
+        arglib/src/optimization.cpp
+        arglib/src/solvers.cpp
+        arglib/src/statistics.cpp
 )
 
 add_executable(WLEDControllerCPP ${SOURCES})
