@@ -862,5 +862,6 @@ int main() {
     }
 
 
+    WSACleanup();  // Nettoyez Winsock avant de quitter
     return 0;
 }

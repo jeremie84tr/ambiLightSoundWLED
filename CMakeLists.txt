@@ -3,7 +3,15 @@ project(WLEDControllerCPP)
 
 set(CMAKE_VERBOSE_MAKEFILE ON)
 
+set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
+
+# Activer la liaison statique pour libstdc++ et libgcc
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -static-libstdc++ -static-libgcc -static")
+
+# Spécifiez l'architecture cible
+set(CMAKE_GENERATOR_PLATFORM x64)
+
 # Source files
 set(SOURCES
         main.cpp
@@ -25,7 +33,13 @@ set(SOURCES
 
 add_executable(WLEDControllerCPP ${SOURCES})
 
+# Lier les bibliothèques nécessaires
 target_link_libraries(WLEDControllerCPP
+        -static
+        -static-libgcc
+        -static-libstdc++
+        -static-libgcc
+        -lpthread
         ws2_32
         kernel32
         user32
