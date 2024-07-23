@@ -7,6 +7,7 @@
 #include <wingdi.h>
 #include <chrono>
 #include <thread>
+#include <valarray>
 
 class Ambilight {
 private:
@@ -296,30 +297,23 @@ std::mutex isChangingData;
 class SoundLight {
 private:
     void setBytes(char* buffer, double audioLevel, double tourneIn = 0) {
-        uint16_t level = static_cast<uint16_t>(audioLevel * NB_LEDS / 4);
-        int decalage = 65;
-        int tourne = tourneIn + decalage;
+        uint16_t level = static_cast<uint16_t>(audioLevel * NB_LEDS / 2);
+        int tourne = tourneIn;
+        int multiplicateur = 1024 / (NB_LEDS / 2);
         for (int i = 0; i < NB_LEDS; ++i) {
-            if (i < level || NB_LEDS - i < level) {
+            if (i > NB_LEDS / 2 - level && i < NB_LEDS / 2 + level) {
                 AmbilightColor couleur;
-                if (i < level) {
-                    couleur = AmbilightColor::getGradient((int) ((level - i) * 6.0) + 255);
+                if (i < NB_LEDS / 2) {
+                    couleur = AmbilightColor::getGradient((i - ((NB_LEDS / 2) - level)) * multiplicateur + 255);
+                    buffer[((i + tourne) % NB_LEDS) * 3 + 2] = couleur.red;
+                    buffer[((i + tourne) % NB_LEDS) * 3 + 3] = couleur.green;
+                    buffer[((i + tourne) % NB_LEDS) * 3 + 4] = couleur.blue;
                 } else {
-                    couleur = AmbilightColor::getGradient((int) ((level - NB_LEDS + i) * 6.0) + 255);
+                    couleur = AmbilightColor::getGradient((level - (i - (NB_LEDS / 2))) * multiplicateur + 255);
+                    buffer[((i + tourne) % NB_LEDS) * 3 + 2] = couleur.red;
+                    buffer[((i + tourne) % NB_LEDS) * 3 + 3] = couleur.green;
+                    buffer[((i + tourne) % NB_LEDS) * 3 + 4] = couleur.blue;
                 }
-                buffer[((i + tourne) % NB_LEDS) * 3 + 2] = couleur.red;
-                buffer[((i + tourne) % NB_LEDS) * 3 + 3] = couleur.green;
-                buffer[((i + tourne) % NB_LEDS) * 3 + 4] = couleur.blue;
-            } else if (i - (NB_LEDS / 2) < level && NB_LEDS - i - (NB_LEDS / 2) < level) {
-                AmbilightColor couleur;
-                if (i - (NB_LEDS / 2) < level && i > NB_LEDS / 2) {
-                    couleur = AmbilightColor::getGradient((int) ((level - (i - (NB_LEDS / 2))) * 6.0) + 255);
-                } else {
-                    couleur = AmbilightColor::getGradient((int) ((level - (NB_LEDS / 2) + i) * 6.0) + 255);
-                }
-                buffer[((i + tourne) % NB_LEDS) * 3 + 2] = couleur.red;
-                buffer[((i + tourne) % NB_LEDS) * 3 + 3] = couleur.green;
-                buffer[((i + tourne) % NB_LEDS) * 3 + 4] = couleur.green;
             } else {
                 buffer[((i + tourne) % NB_LEDS) * 3 + 2] = 0;
                 buffer[((i + tourne) % NB_LEDS) * 3 + 3] = 0;
@@ -682,7 +676,10 @@ private:
     }
 
 public:
-    SoundLight() : audioLevel(0.0), pEnumerator(nullptr), pDevice(nullptr), pAudioClient(nullptr), pCaptureClient(nullptr) {}
+    SoundLight(int nbLeds, uint8_t ip) : audioLevel(0.0), pEnumerator(nullptr), pDevice(nullptr), pAudioClient(nullptr), pCaptureClient(nullptr) {
+        this->NB_LEDS = nbLeds;
+        this->lastIp = ip;
+    }
 
     ~SoundLight() {
         SAFE_RELEASE(pEnumerator);
@@ -699,7 +696,6 @@ public:
             for (int i = 0; i < NB_AMORTISSEMENT; i++) {
                 amorti[i] = 0;
             }
-            const int NB_LEDS = 458;
             char buffer[NB_LEDS * 3 + 2];
 
             AmbilightColor::initGradient();
@@ -713,7 +709,7 @@ public:
                 buffer[i * 3 + 4] = 0;
             }
 
-            uint8_t IP[] = { 192, 168, 1, 5 };
+            uint8_t IP[] = { 192, 168, 1, this->lastIp };
             SOCKADDR_IN address;
             address.sin_family = AF_INET;
             address.sin_addr.s_addr = *(ULONG*)IP;
@@ -834,9 +830,10 @@ private:
     double* fourrierValues;
     int fourrierSize = -1;
     int maxFreq = 0;
-    const int NB_LEDS = 458;
+    int NB_LEDS;
     int loopCaptureCount = 0;
     int loopRenderCount = 0;
+    uint8_t lastIp;
 
     IMMDeviceEnumerator* pEnumerator;
     IMMDevice* pDevice;
@@ -844,11 +841,59 @@ private:
     IAudioCaptureClient* pCaptureClient;
 };
 
+enum parseState {
+    parseStop,
+    parseContinue,
+    parseOk
+};
 
+class Option {
+private:
+    std::string optionName;
+    int charPosition;
+    parseState state;
+
+public:
+    Option(const std::string &name) {
+        this->optionName = name;
+        this->charPosition = 0;
+        this->state = parseContinue;
+    }
+
+    parseState parseOptionName(char value) {
+        if (this->state == parseContinue) {
+            if (value == this->optionName[this->charPosition]) {
+                this->charPosition++;
+                if (this->optionName[this->charPosition] == '\0') {
+                    this->state = parseOk;
+                }
+            } else {
+                this->state = parseStop;
+            }
+        }
+        return this->state;
+    }
+};
+
+int parseInt(char* value) {
+    int ret = 0;
+    int index = 0;
+
+    while (value[index] != '\0') {
+        index++;
+    }
+    int size = index;
+    for (int i = 0; i < size; ++i) {
+        ret += (value[i] - 48) * std::pow(10,size - i - 1);
+    }
+    return ret;
+}
 
 int main(int argc, char** argv) {
     bool light = true;
     bool fourrier = false;
+    int stripSize = 458;
+    int stripIp = 5;
 
     for (int argIndex = 0; argIndex < argc; ++argIndex) {
         char character = argv[argIndex][0];
@@ -857,22 +902,49 @@ int main(int argc, char** argv) {
             if (character == '-') {
                 std::cout << "option" << std::endl;
                 character = argv[argIndex][++charIndice];
-                switch (character) {
-                    case 's':
-                        std::cout << "sound" << std::endl;
-                        light = false;
-                        break;
-                    case 'l':
-                        std::cout << "light" << std::endl;
-                        light = true;
-                        break;
-                    case 'f':
-                        std::cout << "fourrier" << std::endl;
-                        fourrier = true;
-                        break;
-                    default:
-                        std::cout << "DK" << std::endl;
-                        break;
+                if (character == 's') {
+                    std::cout << "sound" << std::endl;
+                    light = false;
+                } else if (character == 'l') {
+                    std::cout << "light" << std::endl;
+                    light = true;
+                } else if (character == 'f') {
+                    std::cout << "fourrier" << std::endl;
+                    fourrier = true;
+                } else if (character == '-') {
+                    Option ip = Option("ip");
+                    Option size = Option("size");
+                    bool end = false;
+                    while (!end) {
+                        character = argv[argIndex][++charIndice];
+                        end = true;
+                        switch (size.parseOptionName(character)) {
+                            case parseOk:
+                                argIndex++;
+                                stripSize = parseInt(argv[argIndex]);
+                            character = '\0';
+                            break;
+                            case parseStop:
+                                break;
+                            default:
+                                end = false;
+                            break;
+                        }
+                        switch (ip.parseOptionName(character)) {
+                            case parseOk:
+                                argIndex++;
+                                stripIp = parseInt(argv[argIndex]);
+                            character = '\0';
+                            break;
+                            case parseStop:
+                                break;
+                            default:
+                                end = false;
+                            break;
+                        }
+                    }
+                } else {
+                    std::cout << "DK" << std::endl;
                 }
             } else {
                 character = argv[argIndex][++charIndice];
@@ -893,7 +965,8 @@ int main(int argc, char** argv) {
         Ambilight ambilight;
         ambilight.start();
     } else {
-        SoundLight soundLight;
+        std::cout << "ambilight with stripSize = " << stripSize << " and ip = 192.168.1." << stripIp << std::endl;
+        SoundLight soundLight = SoundLight(stripSize, stripIp);
         soundLight.Start(fourrier);
     }
 
