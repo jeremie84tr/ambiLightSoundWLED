@@ -304,12 +304,12 @@ private:
             if (i > NB_LEDS / 2 - level && i < NB_LEDS / 2 + level) {
                 AmbilightColor couleur;
                 if (i < NB_LEDS / 2) {
-                    couleur = AmbilightColor::getGradient((i - ((NB_LEDS / 2) - level)) * multiplicateur + 255);
+                    couleur = AmbilightColor::getGradient((i - ((NB_LEDS / 2) - level)) * multiplicateur + 64);
                     buffer[((i + tourne) % NB_LEDS) * 3 + 2] = couleur.red;
                     buffer[((i + tourne) % NB_LEDS) * 3 + 3] = couleur.green;
                     buffer[((i + tourne) % NB_LEDS) * 3 + 4] = couleur.blue;
                 } else {
-                    couleur = AmbilightColor::getGradient((level - (i - (NB_LEDS / 2))) * multiplicateur + 255);
+                    couleur = AmbilightColor::getGradient((level - (i - (NB_LEDS / 2))) * multiplicateur + 64);
                     buffer[((i + tourne) % NB_LEDS) * 3 + 2] = couleur.red;
                     buffer[((i + tourne) % NB_LEDS) * 3 + 3] = couleur.green;
                     buffer[((i + tourne) % NB_LEDS) * 3 + 4] = couleur.blue;
@@ -676,9 +676,10 @@ private:
     }
 
 public:
-    SoundLight(int nbLeds, uint8_t ip) : audioLevel(0.0), pEnumerator(nullptr), pDevice(nullptr), pAudioClient(nullptr), pCaptureClient(nullptr) {
+    SoundLight(int nbLeds, uint8_t ip, bool stripReverse) : audioLevel(0.0), pEnumerator(nullptr), pDevice(nullptr), pAudioClient(nullptr), pCaptureClient(nullptr) {
         this->NB_LEDS = nbLeds;
         this->lastIp = ip;
+        this->reverse = stripReverse;
     }
 
     ~SoundLight() {
@@ -730,7 +731,12 @@ public:
             double moyLevel = 0.0;
             double minLevel = 1.0;
             double level;
-            double spin = 0.0;
+            double spin;
+            if (reverse) {
+                spin = NB_LEDS/2;
+            } else {
+                spin = 0;
+            }
             int NB_VAL = 50;
 
             double* signal[NB_AMORTISSEMENT];
@@ -834,6 +840,7 @@ private:
     int loopCaptureCount = 0;
     int loopRenderCount = 0;
     uint8_t lastIp;
+    bool reverse;
 
     IMMDeviceEnumerator* pEnumerator;
     IMMDevice* pDevice;
@@ -894,6 +901,7 @@ int main(int argc, char** argv) {
     bool fourrier = false;
     int stripSize = 458;
     int stripIp = 5;
+    bool stripReverse = false;
 
     for (int argIndex = 0; argIndex < argc; ++argIndex) {
         char character = argv[argIndex][0];
@@ -914,6 +922,7 @@ int main(int argc, char** argv) {
                 } else if (character == '-') {
                     Option ip = Option("ip");
                     Option size = Option("size");
+                    Option reverse = Option("reverse");
                     bool end = false;
                     while (!end) {
                         character = argv[argIndex][++charIndice];
@@ -942,6 +951,18 @@ int main(int argc, char** argv) {
                                 end = false;
                             break;
                         }
+                        switch (reverse.parseOptionName(character)) {
+                            case parseOk:
+                                argIndex++;
+                                stripReverse = true;
+                                character = '\0';
+                                break;
+                            case parseStop:
+                                break;
+                            default:
+                                end = false;
+                                break;
+                        }
                     }
                 } else {
                     std::cout << "DK" << std::endl;
@@ -966,7 +987,7 @@ int main(int argc, char** argv) {
         ambilight.start();
     } else {
         std::cout << "ambilight with stripSize = " << stripSize << " and ip = 192.168.1." << stripIp << std::endl;
-        SoundLight soundLight = SoundLight(stripSize, stripIp);
+        SoundLight soundLight = SoundLight(stripSize, stripIp, stripReverse);
         soundLight.Start(fourrier);
     }
 
