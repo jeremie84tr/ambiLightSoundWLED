@@ -25,8 +25,9 @@ private:
     int DROITE = 97;
 
     int hbiais = 5;
-
+    int gbiais = 5;
     int bbiais = 5;
+    int dbiais = 5;
 
     void setBytes(char* buffer) {
 
@@ -35,13 +36,13 @@ private:
         RGBQUAD *pPixels = getRgbquad(10,10,nScreenWidth - 20, nScreenHeight - 20);
 
         //std::cout << "screen printed" << std::endl;
-        double coef = static_cast<double>(nScreenWidth - 20) / static_cast<double>(HAUT);
+        double coef = static_cast<double>(nScreenWidth - 20 - gbiais - dbiais) / static_cast<double>(HAUT);
         int i = 0;
         int indice;
         bool blackH = true;
         bool blackB = true;
         while (i < HAUT) {
-            indice = (HAUT - i - 1) * coef + (nScreenHeight - 21) * (nScreenWidth - 20) - hbiais * (nScreenWidth - 20);
+            indice = (HAUT - i - 1) * coef + (nScreenHeight - 21) * (nScreenWidth - 20) - hbiais * (nScreenWidth - 20) + gbiais;
             buffer[i * 3 + 2] = pPixels[indice].rgbRed;
             blackH &= pPixels[indice].rgbRed <= BLACK;
             blackB &= pPixels[indice + 5 * (nScreenWidth - 20)].rgbRed <= BLACK;
@@ -65,30 +66,43 @@ private:
 
         coef = static_cast<double>(nScreenHeight - 20 - bbiais - hbiais) / static_cast<double>(GAUCHE);
         i = 0;
+        bool blackD = true;
+        bool blackG = true;
         while (i < GAUCHE) {
-            indice = int((GAUCHE - i) * coef) * (nScreenWidth - 20) + (bbiais) * (nScreenWidth - 20) ;
-            buffer[(i + HAUT) * 3 + 2] = pPixels[indice].rgbRed;
-            buffer[(i + HAUT) * 3 + 3] = pPixels[indice].rgbGreen;
-            buffer[(i + HAUT) * 3 + 4] = pPixels[indice].rgbBlue;
+            indice = int((GAUCHE - i) * coef) * (nScreenWidth - 20) + (bbiais) * (nScreenWidth - 20) + gbiais ;
+            buffer[(i + HAUT) * 3 + 2] = pPixels[indice + 5].rgbRed;
+            blackG &= pPixels[indice - 5].rgbRed <= BLACK;
+            blackD &= pPixels[indice].rgbRed <= BLACK;
+            buffer[(i + HAUT) * 3 + 3] = pPixels[indice + 5].rgbGreen;
+            blackG &= pPixels[indice - 5].rgbGreen <= BLACK;
+            blackD &= pPixels[indice].rgbGreen <= BLACK;
+            buffer[(i + HAUT) * 3 + 4] = pPixels[indice + 5].rgbBlue;
+            blackG &= pPixels[indice - 5].rgbBlue <= BLACK;
+            blackD &= pPixels[indice].rgbBlue <= BLACK;
             i += 1;
+        }
+        if (blackD && gbiais < nScreenWidth / 2) {
+            gbiais += 5;
+        } else if (!blackG && gbiais > 11) {
+            gbiais -= 5;
         }
 
 
-        coef = static_cast<double>(nScreenWidth - 20) / static_cast<double>(BAS);
+        coef = static_cast<double>(nScreenWidth - 20 - gbiais - dbiais) / static_cast<double>(BAS);
         i = 0;
         blackH = true;
         blackB = true;
         while (i < BAS) {
-            indice = i * coef + (nScreenWidth - 20) * 10 + bbiais * (nScreenWidth - 20);
+            indice = i * coef + (nScreenWidth - 20) * 10 + bbiais * (nScreenWidth - 20) + gbiais;
             buffer[(i + HAUT + GAUCHE) * 3 + 2] = pPixels[indice].rgbRed;
-            blackH &= pPixels[indice].rgbRed <= BLACK;
             blackB &= pPixels[indice - 5 * (nScreenWidth - 20)].rgbRed <= BLACK;
+            blackH &= pPixels[indice].rgbRed <= BLACK;
             buffer[(i + HAUT + GAUCHE) * 3 + 3] = pPixels[indice].rgbGreen;
-            blackH &= pPixels[indice].rgbGreen <= BLACK;
             blackB &= pPixels[indice - 5 * (nScreenWidth - 20)].rgbGreen <= BLACK;
+            blackH &= pPixels[indice].rgbGreen <= BLACK;
             buffer[(i + HAUT + GAUCHE) * 3 + 4] = pPixels[indice].rgbBlue;
-            blackH &= pPixels[indice].rgbBlue <= BLACK;
             blackB &= pPixels[indice - 5 * (nScreenWidth - 20)].rgbBlue <= BLACK;
+            blackH &= pPixels[indice].rgbBlue <= BLACK;
             i += 1;
         }
         if (blackH && bbiais < nScreenHeight / 2) {
@@ -102,12 +116,25 @@ private:
 
         coef = static_cast<double>(nScreenHeight - 20 - bbiais - hbiais) / static_cast<double>(DROITE);
         i = 0;
+        blackD = true;
+        blackG = true;
         while (i < DROITE) {
-            indice = int(i * coef) * (nScreenWidth - 20) + (nScreenWidth - 21) + (bbiais) * (nScreenWidth - 20);
+            indice = int(i * coef) * (nScreenWidth - 20) + (nScreenWidth - 21) + (bbiais) * (nScreenWidth - 20) - dbiais;
             buffer[(i + HAUT + GAUCHE + BAS) * 3 + 2] = pPixels[indice].rgbRed;
+            blackG &= pPixels[indice].rgbRed <= BLACK;
+            blackD &= pPixels[indice + 5].rgbRed <= BLACK;
             buffer[(i + HAUT + GAUCHE + BAS) * 3 + 3] = pPixels[indice].rgbGreen;
+            blackG &= pPixels[indice].rgbGreen <= BLACK;
+            blackD &= pPixels[indice + 5].rgbGreen <= BLACK;
             buffer[(i + HAUT + GAUCHE + BAS) * 3 + 4] = pPixels[indice].rgbBlue;
+            blackG &= pPixels[indice].rgbBlue <= BLACK;
+            blackD &= pPixels[indice + 5].rgbBlue <= BLACK;
             i += 1;
+        }
+        if (blackG && dbiais < nScreenWidth / 2) {
+            dbiais += 5;
+        } else if (!blackD && dbiais > 11) {
+            dbiais -= 5;
         }
         delete[] pPixels;
         DeleteObject(hCaptureBitmap);
@@ -446,19 +473,20 @@ private:
     void processAudio(float* data, UINT32 numFrames) {
 
         double max = 0.0;
+        double min = 1.0;
         double val;
 
         UINT32 i = 0;
         while (i < numFrames) {
-            val = data[i];
+            val = (data[i] + 1.0) / 2.0;
             if (val > max) {
                 max = val;
-            } else if (-val > max) {
-                max = -val;
+            } else if (val < min) {
+                min = val;
             }
             i++;
         }
-        audioLevel = max;
+        audioLevel = max - min;
     }
 
     void processFourrier(float* data, UINT32 numFrames, int repeat) {
@@ -676,10 +704,11 @@ private:
     }
 
 public:
-    SoundLight(int nbLeds, uint8_t ip, bool stripReverse) : audioLevel(0.0), pEnumerator(nullptr), pDevice(nullptr), pAudioClient(nullptr), pCaptureClient(nullptr) {
+    SoundLight(int nbLeds, uint8_t ip, bool stripReverse, int NB_AMORTISSEMENT) : audioLevel(0.0), pEnumerator(nullptr), pDevice(nullptr), pAudioClient(nullptr), pCaptureClient(nullptr) {
         this->NB_LEDS = nbLeds;
         this->lastIp = ip;
         this->reverse = stripReverse;
+        this->NB_AMORTISSEMENT = NB_AMORTISSEMENT;
     }
 
     ~SoundLight() {
@@ -692,7 +721,6 @@ public:
 
     void Start(bool fourrier) {
         try {
-            int NB_AMORTISSEMENT = 5;
             double amorti[NB_AMORTISSEMENT];
             for (int i = 0; i < NB_AMORTISSEMENT; i++) {
                 amorti[i] = 0;
@@ -771,55 +799,52 @@ public:
                 nbVal +=1;
 
                 auto currentDate = std::chrono::high_resolution_clock::now();
-                if (std::chrono::duration<double, std::milli>(currentDate - lastUpdate).count() > 12) {
-                    lastUpdate = currentDate;
-                    amorti[amortiId] = moyLevel / nbVal;
-                    amortiId += 1;
-                    if (amortiId >= NB_AMORTISSEMENT) {
-                        amortiId = 0;
-                    }
-                    signalAmortiId++;
-                    if (signalAmortiId >= NB_AMORTISSEMENT) {
-                        signalAmortiId = 0;
-                    }
+                std::this_thread::sleep_for(std::chrono::milliseconds(17 - int(std::chrono::duration<double, std::milli>(currentDate - lastUpdate).count())));
+                lastUpdate = currentDate;
+                amorti[amortiId] = moyLevel / nbVal;
+                amortiId += 1;
+                if (amortiId >= NB_AMORTISSEMENT) {
+                    amortiId = 0;
+                }
+                signalAmortiId++;
+                if (signalAmortiId >= NB_AMORTISSEMENT) {
+                    signalAmortiId = 0;
+                }
 
 
-                    isChangingFourrier.lock();
+                isChangingFourrier.lock();
 //                    std::cout << "avant compute FFT" << std::endl;
-                    computeFFT(signal[signalAmortiId],fourrierValues, fourrierSize, NB_VAL);
-                    isChangingFourrier.unlock();
+                computeFFT(signal[signalAmortiId],fourrierValues, fourrierSize, NB_VAL);
+                isChangingFourrier.unlock();
 
 //                    std::cout << "avant amorti" << std::endl;
-                    level = getAmorti(amorti, NB_AMORTISSEMENT);
-                    getAmorti(signalAmorti, signal, NB_VAL, NB_AMORTISSEMENT, signalAmortiId);
-                    if (maxFreq > 0) {
-                        double quantite = 500.0 / maxFreq;
+                level = getAmorti(amorti, NB_AMORTISSEMENT);
+                getAmorti(signalAmorti, signal, NB_VAL, NB_AMORTISSEMENT, signalAmortiId);
+                if (maxFreq > 0) {
+                    double quantite = 500.0 / maxFreq;
 //                        std::cout << "tourne : " << quantite << std::endl;
-                        //spin += quantite;
-                    }
+                    //spin += quantite;
+                }
 //                    std::cout << "setBytes" << std::endl;
 
-                    if (fourrier) {
-                        setBytes(buffer, signalAmorti, NB_VAL, spin);
-                    } else {
-                        setBytes(buffer, level, spin);
-                    }
-
-                    sendto(datagramSocket, buffer, sizeof(buffer), 0, (SOCKADDR*)&address, sizeof(address));
-                    moyLevel = 0.0;
-                    minLevel = 1.0;
-                    nbVal = 0;
-
-                    frame += 1;
-                    if (frame % 100 == 0) {
-                        std::cout << 100000.0 / std::chrono::duration<double, std::milli>(currentDate - lastDate).count()
-                                  << " fps  ; captureLoopCount : " << (loopCaptureCount * 1000.0) / std::chrono::duration<double, std::milli>(currentDate - lastDate).count() << " ; renderLoopCount : " << (loopRenderCount * 1000.0) / std::chrono::duration<double, std::milli>(currentDate - lastDate).count() << std::endl;
-                        lastDate = currentDate;
-                        loopCaptureCount = 0;
-                        loopRenderCount = 0;
-                    }
+                if (fourrier) {
+                    setBytes(buffer, signalAmorti, NB_VAL, spin);
                 } else {
-                    std::this_thread::sleep_for(std::chrono::milliseconds(15));
+                    setBytes(buffer, level, spin);
+                }
+
+                sendto(datagramSocket, buffer, sizeof(buffer), 0, (SOCKADDR*)&address, sizeof(address));
+                moyLevel = 0.0;
+                minLevel = 1.0;
+                nbVal = 0;
+
+                frame += 1;
+                if (frame % 100 == 0) {
+                    std::cout << 100000.0 / std::chrono::duration<double, std::milli>(currentDate - lastDate).count()
+                              << " fps  ; captureLoopCount : " << (loopCaptureCount * 1000.0) / std::chrono::duration<double, std::milli>(currentDate - lastDate).count() << " ; renderLoopCount : " << (loopRenderCount * 1000.0) / std::chrono::duration<double, std::milli>(currentDate - lastDate).count() << std::endl;
+                    lastDate = currentDate;
+                    loopCaptureCount = 0;
+                    loopRenderCount = 0;
                 }
             }
 
@@ -841,6 +866,7 @@ private:
     int loopRenderCount = 0;
     uint8_t lastIp;
     bool reverse;
+    int NB_AMORTISSEMENT;
 
     IMMDeviceEnumerator* pEnumerator;
     IMMDevice* pDevice;
@@ -902,6 +928,7 @@ int main(int argc, char** argv) {
     int stripSize = 458;
     int stripIp = 5;
     bool stripReverse = false;
+    int stripAmortissement = 5;
 
     for (int argIndex = 0; argIndex < argc; ++argIndex) {
         char character = argv[argIndex][0];
@@ -923,6 +950,7 @@ int main(int argc, char** argv) {
                     Option ip = Option("ip");
                     Option size = Option("size");
                     Option reverse = Option("reverse");
+                    Option amortissement = Option("amortissement");
                     bool end = false;
                     while (!end) {
                         character = argv[argIndex][++charIndice];
@@ -953,8 +981,19 @@ int main(int argc, char** argv) {
                         }
                         switch (reverse.parseOptionName(character)) {
                             case parseOk:
-                                argIndex++;
                                 stripReverse = true;
+                                character = '\0';
+                                break;
+                            case parseStop:
+                                break;
+                            default:
+                                end = false;
+                                break;
+                        }
+                        switch (amortissement.parseOptionName(character)) {
+                            case parseOk:
+                                argIndex++;
+                                stripAmortissement = parseInt(argv[argIndex]);
                                 character = '\0';
                                 break;
                             case parseStop:
@@ -987,7 +1026,7 @@ int main(int argc, char** argv) {
         ambilight.start();
     } else {
         std::cout << "ambilight with stripSize = " << stripSize << " and ip = 192.168.1." << stripIp << std::endl;
-        SoundLight soundLight = SoundLight(stripSize, stripIp, stripReverse);
+        SoundLight soundLight = SoundLight(stripSize, stripIp, stripReverse, stripAmortissement);
         soundLight.Start(fourrier);
     }
 
