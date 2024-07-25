@@ -80,12 +80,12 @@ int main(int argc, char **argv)
         }
         else if (!strcmp(argv[i], "-S") || !strcmp(argv[i], "--smooth"))
         {
-            std::string value = agrv[++i];
+            std::string value = argv[++i];
             stripAmortissement = stoi(value);
         }
         else if (!strcmp(argv[i], "-i") || !strcmp(argv[i], "--ip"))
         {
-            std::string value = agrv[++i];
+            std::string value = argv[++i];
             stripIp = stoi(value);
         }
     }
