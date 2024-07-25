@@ -16,19 +16,27 @@ set(CMAKE_GENERATOR_PLATFORM x64)
 set(SOURCES
         main.cpp
         # Add all ALGLIB source files here
-        arglib/src/alglibinternal.cpp
-        arglib/src/alglibmisc.cpp
-        arglib/src/ap.cpp
-        arglib/src/dataanalysis.cpp
-        arglib/src/diffequations.cpp
-        arglib/src/fasttransforms.cpp
-        arglib/src/integration.cpp
-        arglib/src/interpolation.cpp
-        arglib/src/linalg.cpp
-        arglib/src/specialfunctions.cpp
-        arglib/src/optimization.cpp
-        arglib/src/solvers.cpp
-        arglib/src/statistics.cpp
+        alglib/src/alglibinternal.cpp
+        alglib/src/alglibmisc.cpp
+        alglib/src/ap.cpp
+        alglib/src/dataanalysis.cpp
+        alglib/src/diffequations.cpp
+        alglib/src/fasttransforms.cpp
+        alglib/src/integration.cpp
+        alglib/src/interpolation.cpp
+        alglib/src/linalg.cpp
+        alglib/src/specialfunctions.cpp
+        alglib/src/optimization.cpp
+        alglib/src/solvers.cpp
+        alglib/src/statistics.cpp
+        ambiLight/Ambilight.cpp
+        ambiLight/Ambilight.h
+        soundLight/SoundLight.h
+        soundLight/SoundLight.cpp
+        soundLight/SoundLightColor.h
+        soundLight/SoundLightColor.cpp
+        parseur/ParserOption.h
+        parseur/ParserOption.cpp
 )
 
 add_executable(WLEDControllerCPP ${SOURCES})
